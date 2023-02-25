@@ -1,4 +1,5 @@
 //Universal Variable two body orbit propagator, Curtis ALgorithm 3.3 and 3.4
+//Izzo's Lambert Solver
 
 #include <vector>
 #include <cmath>
@@ -270,7 +271,7 @@ int HouseholderIterations(double &x0, const double T, const int N, const double 
     }
 
     if (iter > maxIter) {
-        cout << "Householder iterations did not converge, x = " << x0 << endl;
+        //cout << "Householder iterations did not converge, x = " << x0 << endl;
     }
     return iter;
 }
