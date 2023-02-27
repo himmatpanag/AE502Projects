@@ -5,10 +5,11 @@
 #include <cmath>
 #include <iostream>
 #include "UniversalPropagator.h"
+#include <iomanip>
+
 using namespace std; // Don't need to use std:: everywhere 
 
 const double pi = acos(-1);
-
 
 double Stumpff_C(const double z) {
     if (z > 0) {
@@ -47,7 +48,7 @@ double solveUniversalAnomaly(double r0, double v0, double mu, double alpha, doub
         iter++;
     }
     if (iter==100) {
-        cout<<"Universal Propagator did not converge in 100 iterations"<<endl;
+        cout << "Universal Propagator did not converge in 100 iterations"<<endl;
     } 
     return chiNew;
 }
@@ -133,11 +134,23 @@ double minValueInArray(std::vector<double> array) {
         cout << "Array is empty" << endl;
     }
     else {
-        double min = array[0];
-        for (int i = 1; i < array.size(); i++) {
-            if (array[i] < min) {
-                min = array[i];
+        double min;
+        bool arrayContainsNans = true;
+        for (int i=0; i<array.size(); i++) {
+            if (isnan(array[i]) == false) {
+                if (arrayContainsNans) {
+                    min = array[i];
+                    arrayContainsNans = false;
+                } else {
+                    if (array[i] < min) {
+                        min = array[i];
+                    }
+                }
             }
+        }
+
+        if (arrayContainsNans) {
+            return array[0];
         }
         return min;
     }
@@ -194,23 +207,21 @@ double hypergeometricF(double z, double tol)
 double timeOfFlight(const double x, const int M, const double lambda) {
     double dist = fabs(x-1);
     double a_amin = 1.0/(1-x*x); // ratio a/amin
-    //cout << "a_amin: " << a_amin << endl;
-    //cout << "dist: " << dist << endl;
+
     double T_nonDim = 0;
     
     double battin = 0.01;
     double lagrange = 0.2;
     if (dist < lagrange && dist > battin) { 
-        if (a_amin>0) {
+        if (a_amin>=0) {
             double alpha = 2.0*acos(x); // eq 14
             double beta = 2.0 * asin(sqrt(lambda*lambda/a_amin)); // eq 13
             //TOF equation 9, but non dimensionalized (see eq for T under eq 13)
             T_nonDim = a_amin*sqrt(a_amin)*(alpha - beta + sin(beta) - sin(alpha) + 2*M*pi)/2;
         } else {
             double alpha = 2.0 * acosh(x);
-            double beta = 2.0 * asinh(sinh(alpha/2.0)/lambda); 
+            double beta = 2.0 * asinh(sqrt(-lambda*lambda/a_amin)); 
             T_nonDim = (-a_amin * sqrt(-a_amin) * ((beta - sinh(beta)) - (alpha - sinh(alpha))) / 2.0);; 
-
         }
         return T_nonDim;
     }
@@ -224,7 +235,7 @@ double timeOfFlight(const double x, const int M, const double lambda) {
         double S1 = 0.5 * (1.0 - lambda - x * eta);
         double Q = hypergeometricF(S1, 1e-11);
         Q = 4.0 / 3.0 * Q;
-        T_nonDim = (eta * eta * eta * Q + 4.0 * lambda * eta) / 2.0 + M * M_PI / pow(rho, 1.5);
+        T_nonDim = (eta * eta * eta * Q + 4.0 * lambda * eta) / 2.0 + M * M_PI / (rho*sqrt(rho));
         return T_nonDim;
     } else { // We use Lancaster tof expresion
         double y = sqrt(rho);
@@ -259,12 +270,12 @@ int HouseholderIterations(double &x0, const double T, const int N, const double 
     double error = 1; 
     double DT = 0; double DDT = 0; double DDDT = 0;
     double xNew = 0; double f = 0; double Tout = 0; //Initialize
-    
     while ((iter <= maxIter) && (error > tol)) {
         Tout = timeOfFlight(x0, N, lambda);
         dTdx(DT, DDT, DDDT, x0, T, lambda);
         f = Tout - T; 
-        xNew = x0 - f * (pow(DT,2) - f * DDT / 2.0) / (DT * (pow(DT,2) - f * DDT) + DDDT*f*f/6.0);                  
+        double DT2 = DT*DT;
+        xNew = x0 - f * (DT2 - f * DDT / 2.0) / (DT * (DT2 - f * DDT) + DDDT*f*f/6.0);                  
         error = fabs(xNew - x0);            
         x0 = xNew;
         iter++;
@@ -274,7 +285,7 @@ int HouseholderIterations(double &x0, const double T, const int N, const double 
         //cout << "Householder iterations did not converge, x = " << x0 << endl;
     }
     return iter;
-}
+}   
 
 std::vector<double> Get_x_ListIzzo(double lambda, double T){
     int m_Max = floor(T/pi);
@@ -312,42 +323,35 @@ std::vector<double> Get_x_ListIzzo(double lambda, double T){
     }
     // Initialize vector output for x and y 
     // Typically 4 ellipses for each Lambert problem, 2 prograde and 2 retrograde. Here we only do one direction (prograde)
+        //DEBUG SINGLE REV CASE
+    m_Max = 0;
     std::vector<int> x_iter(m_Max*2+1); 
     std::vector<double> x(m_Max*2+1); 
     std::vector<double> y(m_Max*2+1);
-    double tol = 1e-8; 
+    double tol = 1e-5; 
     // Single revolution Case - initial guess, eq 30
     if (T >= T0) { 
-        x[0] = pow((T0/T),2/3)-1;
+        x[0] = cbrt(pow((T0/T),2.0))-1;//-(T - T0) / (T - T0 + 4);
     } else if (T <= T1) {
-        x[0] = 2*(T1/T) - 1; //2.5 * T1 * (T1 - T) / ((1 - pow(lambda,5)) * T) + 1;
+        x[0] = 2.5 * T1 * (T1 - T) / ((1 - pow(lambda,5)) * T) + 1; // 2*(T1/T) - 1;
     } else {
         x[0] = pow((T/T0), 0.69314718055994529 / log(T1/T0)) - 1.0;
     }
-    bool debug = false; 
-    if (debug) {
-        cout << "T = " << T << endl;
-        cout << "T0 = " << T0 << endl;
-        cout << "T1 = " << T1 << endl;
-        cout << "TM0 = " << TM0 << endl;
-        cout << "lambda = " << lambda << endl;
-        cout << "x[0] = " << x[0] << endl;
-    } 
+    
     // Householder iterations to find x
     x_iter[0] = HouseholderIterations(x[0], T, 0, tol, 25, lambda);
-    //cout << "x[0] = " << x[0] << endl;
+
     //Multiple revolution case 
     double temp; 
     for (int M = 1; M <= m_Max; M++) { 
-        temp = pow((M * M_PI + M_PI) / (8.0 * T), 2.0 / 3.0);
-            //cout << "Revoultion Case = " << M << endl;
+        temp = cbrt(pow((M * pi + pi) / (8.0 * T), 2.0));
             // 3.2.1 left Householder iterations
             x[2 * M - 1] = (temp - 1) / (temp + 1);
-            x_iter[2 * M - 1] = HouseholderIterations(x[2 * M - 1], T, M, tol, 15, lambda);
+            x_iter[2 * M - 1] = HouseholderIterations(x[2 * M - 1], T, M, tol, 25, lambda);
             // 3.2.1 right Householder iterations
-            temp = pow((8.0 * T) / (M * M_PI), 2.0 / 3.0);
+            temp = cbrt(pow((8.0 * T) / (M * pi), 2.0));
             x[2 * M] = (temp - 1) / (temp + 1);
-            x_iter[2 * M] = HouseholderIterations(x[2 * M], T, M, tol, 15, lambda);
+            x_iter[2 * M] = HouseholderIterations(x[2 * M], T, M, tol, 25, lambda);
     }
     return x;
 
@@ -432,8 +436,9 @@ std::vector<double> LambertSolverIzzo(std::vector<double>& rv1, std::vector<doub
             totalDV[i] = norm(subtract_vectors(V1,vDepBody));
         }
     }
-    std::vector<double> out = {V1[0], V1[1], V1[2], V2[0], V2[1], V2[2]};
-    //return out;
+    // Output the velocity vectors v1 and v2 instead of the rendezvous or flyby deltaV
+    //std::vector<double> out = {V1[0], V1[1], V1[2], V2[0], V2[1], V2[2]};
+    //return out; 
     return totalDV;
 }
 
@@ -499,26 +504,23 @@ std::vector<std::vector<double>> AssignmentOne(int targetNum, bool rendezvous) {
 
     for (int i = 0; i < numDepartureTimes; i++) {
         departureTimes[i] = initialDepartureDay + i * departureWindowLength/(numDepartureTimes-1);
-        //cout << "Departure Time: " << departureTimes[i] << endl;
     }
     for (int i = 0; i < numArrivalTimes; i++) {
         arrivalTimes[i] = initialArrivalDay + i * arrivalWindowLength/(numArrivalTimes-1);
-        //cout << "Arrival Time: " << arrivalTimes[i] << endl;
     }
 
     double dt = 0;
     
-    for (int i = 0; i < numDepartureTimes; i++) {
-        for (int j = 0; j < numArrivalTimes; j++) {
+    for (int i = 0; i < numDepartureTimes; i++) { //(int i = 65; i <= 65; i++) {
+        for (int j = 0; j < numArrivalTimes; j++) {// (int j = 110; j <= 110; j++) {
             dt = arrivalTimes[j] - departureTimes[i];
             if (dt>0) {
                 rvEarthDepartureTime = GetPositionVelocity(rE,vE,mu_sun,departureTimes[i]);
                 rvTargetAtArrival = GetPositionVelocity(targetPosDeparture,targetVelDeparture,mu_sun,arrivalTimes[j]);
 
                 std::vector<double> possibleDV = LambertSolverIzzo(rvEarthDepartureTime, rvTargetAtArrival, mu_sun, dt, false, rendezvous);
-                totalDV[i][j] = minValueInArray(possibleDV);                
-            }
-            else {
+                totalDV[i][j] = minValueInArray(possibleDV);
+            } else {
                 totalDV[i][j] = NAN;
             }
         }
@@ -529,7 +531,6 @@ std::vector<std::vector<double>> AssignmentOne(int targetNum, bool rendezvous) {
 int main() {
 
     //Testing propagator and Lambert Solver 
-
     std::vector<double> r1 = {5644, 2830, 4170, 0, 0, 0};
     std::vector<double> r2 = {-2240, 7320, 4980, 0, 0, 0};
     double mu = 3.986004418e5;
@@ -537,17 +538,17 @@ int main() {
 
     bool cw = false; 
     std::vector<double> out = LambertSolverIzzo(r1, r2, mu,  tof, cw, true);
-    cout << "out: " << out[0] << ", " << out[1] << ", " << out[2] << endl;
-    cout << "out: " << out[3] << ", " << out[4] << ", " << out[5] << endl;
+    //cout << "out: " << out[0] << ", " << out[1] << ", " << out[2] << endl;
+    //cout << "out: " << out[3] << ", " << out[4] << ", " << out[5] << endl;
 
     cw = true; 
     out = LambertSolverIzzo(r1, r2, mu,  tof, cw, true);
-    cout << "out: " << out[0] << ", " << out[1] << ", " << out[2] << endl;
-    cout << "out: " << out[3] << ", " << out[4] << ", " << out[5] << endl;
+    //cout << "out: " << out[0] << ", " << out[1] << ", " << out[2] << endl;
+    //cout << "out: " << out[3] << ", " << out[4] << ", " << out[5] << endl;
 
-    std::vector<double> v1 = {out[0], out[1], out[2]};
-    std::vector<double> r1Check = {r1[0], r1[1], r1[2]};
-    std::vector<double> rvCheck = GetPositionVelocity(r1Check, v1, mu, tof);
+    //std::vector<double> v1 = {out[0], out[1], out[2]};
+    //std::vector<double> r1Check = {r1[0], r1[1], r1[2]};
+    //std::vector<double> rvCheck = GetPositionVelocity(r1Check, v1, mu, tof);
     //cout << "posFinal: " << rvCheck[0] << ", " << rvCheck[1] << ", " << rvCheck[2] << endl;
     //cout << "velFinal: " << rvCheck[3] << ", " << rvCheck[4] << ", " << rvCheck[5] << endl;
 
@@ -559,12 +560,12 @@ int main() {
     //cout << "velFinal: " << rvCheckRetrograde2[3] << ", " << rvCheckRetrograde2[4] << ", " << rvCheckRetrograde2[5] << endl;
 
     //Test Universal propagator - Example 3.7 from Curtis
-    r1Check = {7000.0,-12124.0,0.0};
-    v1 = {2.6679,4.6210,0.0};
-    //std::vector<double> rvCheck2 = GetPositionVelocity(r1Check, v1, mu, 3600.0);
-    //cout << "posFinal: " << rvCheck2[0] << ", " << rvCheck2[1] << ", " << rvCheck2[2] << endl;
-    //cout << "velFinal: " << rvCheck2[3] << ", " << rvCheck2[4] << ", " << rvCheck2[5] << endl;
+    std::vector<double> r1Check = {7000.0,-12124.0,0.0};
+    std::vector<double> v1 = {2.6679,4.6210,0.0};
+    std::vector<double> rvCheck2 = GetPositionVelocity(r1Check, v1, mu, 3600.0);
+    cout << "posFinal: " << rvCheck2[0] << ", " << rvCheck2[1] << ", " << rvCheck2[2] << endl;
+    cout << "velFinal: " << rvCheck2[3] << ", " << rvCheck2[4] << ", " << rvCheck2[5] << endl;
 
-    //double chi = solveUniversalAnomaly(10000, 3.0752, 398600, -5.0878e-5, 3600);
-    //cout << "chi: " << chi << endl;
+    double chi = solveUniversalAnomaly(10000, 3.0752, 398600, -5.0878e-5, 3600);
+    cout << "chi: " << chi << endl;
 }

@@ -7,9 +7,14 @@ command = '/Applications/MATLAB_R2021b.app/bin/mex AssignmentOneMex.cpp Universa
 disp(cmdout)
 
 %% Question 3
-A = AssignmentOneMex(int32(1),true); dims = size(A); xDep = 1:dims(1); yArr = 1:dims(2);
-DV_1I_Rendezvous_Clipped = A; 
-for ii = 1:numel(A)
+tic; DV_1I_Rendezvous_Clipped = AssignmentOneMex(int32(1),true); toc; 
+tic; DV_1I_FlybyClipped = AssignmentOneMex(int32(1),false); toc;
+
+tic; DV_2I_Rendezvous_Clipped = AssignmentOneMex(int32(2),true); toc; 
+tic; DV_2I_FlybyClipped = AssignmentOneMex(int32(2),false); toc;
+
+dims = size(DV_1I_Rendezvous_Clipped); xDep = 1:dims(1); yArr = 1:dims(2);
+for ii = 1:numel(DV_1I_Rendezvous_Clipped)
     if DV_1I_Rendezvous_Clipped(ii) > 50
         DV_1I_Rendezvous_Clipped(ii) = NaN;
     end 
@@ -23,13 +28,12 @@ c = colorbar;
 set(get(c,'label'),'string','\DeltaV (km/s)');
 view(2)
 
-A = AssignmentOneMex(int32(1),false); dims = size(A); xDep = 1:dims(1); yArr = 1:dims(2);
-DV_1I_FlybyClipped = A;
-for ii = 1:numel(A)
+for ii = 1:numel(DV_1I_FlybyClipped)
     if DV_1I_FlybyClipped(ii) > 20
         DV_1I_FlybyClipped(ii) = NaN;
     end 
 end 
+dims = size(DV_1I_FlybyClipped); xDep = 1:dims(1); yArr = 1:dims(2);
 hFig2 = figure; surf(xDep,yArr,DV_1I_FlybyClipped','EdgeColor','interp','FaceColor','interp');
 title('Fly by of 1I/’Oumouamoua')
 xlabel('Departure Date, days from Jan 2017')
@@ -39,9 +43,8 @@ set(get(c,'label'),'string','\DeltaV (km/s)');
 view(2)
 
 %% Question 4 2I/Borisov
-A = AssignmentOneMex(int32(2),true);dims = size(A); xDep = 1:dims(1); yArr = 1:dims(2);
-DV_2I_Rendezvous_Clipped = A; 
-for ii = 1:numel(A)
+dims = size(DV_2I_Rendezvous_Clipped); xDep = 1:dims(1); yArr = 1:dims(2);
+for ii = 1:numel(DV_2I_Rendezvous_Clipped)
     if DV_2I_Rendezvous_Clipped(ii) > 60
         DV_2I_Rendezvous_Clipped(ii) = NaN;
     end 
@@ -56,9 +59,8 @@ c = colorbar;
 set(get(c,'label'),'string','\DeltaV (km/s)');
 view(2)
 
-A = AssignmentOneMex(int32(2),false);
-DV_2I_FlybyClipped = A;
-for ii = 1:numel(A)
+dims = size(DV_2I_FlybyClipped); xDep = 1:dims(1); yArr = 1:dims(2);
+for ii = 1:numel(DV_2I_FlybyClipped)
     if DV_2I_FlybyClipped(ii) > 20
         DV_2I_FlybyClipped(ii) = NaN;
     end 
@@ -95,4 +97,4 @@ elements1I = GetOrbitElements(r1I*AU,v1I*AU/day,mu);
 elements2I = GetOrbitElements(r2I*AU,v2I*AU/day,mu);
 
 %% Question 6 
-vEsc = sqrt(2*mu/AU)
+vEsc = sqrt(2*mu/AU);
